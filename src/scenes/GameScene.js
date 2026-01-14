@@ -2,8 +2,10 @@ import { createUI } from "../ui/domUI.js";
 
 const WORLD_WIDTH = 2000;
 const WORLD_HEIGHT = 1000;
-const SPRITE_FRAME_WIDTH = 256;
-const SPRITE_FRAME_HEIGHT = 256;
+export const SPRITE_FRAME_W = 256;
+export const SPRITE_FRAME_H = 256;
+export const PLAYER_SCALE = 0.45;
+const PREVIEW_SCALE = 0.18;
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -25,8 +27,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.player = this.physics.add.sprite(160, 200, "player", 0);
     this.player.setCollideWorldBounds(true);
-    this.player.setSize(SPRITE_FRAME_WIDTH * 0.4, SPRITE_FRAME_HEIGHT * 0.6, true);
-    this.player.setOffset(SPRITE_FRAME_WIDTH * 0.3, SPRITE_FRAME_HEIGHT * 0.2);
+    this.player.setScale(PLAYER_SCALE);
+    this.player.setSize(SPRITE_FRAME_W * 0.45, SPRITE_FRAME_H * 0.65, true);
+    this.player.setOffset(SPRITE_FRAME_W * 0.28, SPRITE_FRAME_H * 0.2);
 
     this.physics.add.collider(this.player, this.platforms);
 
@@ -42,6 +45,7 @@ export default class GameScene extends Phaser.Scene {
     this.jumpKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.createAnimations();
+    this.createSpritePreview();
 
     this.input.on("pointerdown", (pointer) => {
       this.target = { x: pointer.worldX, y: pointer.worldY };
@@ -56,6 +60,8 @@ export default class GameScene extends Phaser.Scene {
       onToggle: (state) => {
         this.autoMove = state;
       },
+      frameWidth: SPRITE_FRAME_W,
+      frameHeight: SPRITE_FRAME_H,
     });
 
     this.events.on("shutdown", () => {
@@ -81,35 +87,25 @@ export default class GameScene extends Phaser.Scene {
 
   createPlatforms() {
     this.platforms = this.physics.add.staticGroup();
+    const platformGraphics = this.add.graphics();
+    platformGraphics.fillStyle(0x475569, 0.85);
 
-    const crops = {
-      wide: { x: 0, y: 768, w: 512, h: 128 },
-      medium: { x: 512, y: 768, w: 384, h: 128 },
-      small: { x: 896, y: 768, w: 256, h: 128 },
-      thin: { x: 1152, y: 768, w: 256, h: 96 },
-    };
+    const platformRects = [
+      { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT - 40, width: 1900, height: 80 },
+      { x: 320, y: 740, width: 360, height: 70 },
+      { x: 820, y: 640, width: 320, height: 64 },
+      { x: 1220, y: 540, width: 280, height: 64 },
+      { x: 1650, y: 740, width: 300, height: 70 },
+      { x: 560, y: 480, width: 280, height: 60 },
+      { x: 980, y: 420, width: 260, height: 60 },
+    ];
 
-    const createPlatform = ({ x, y, width, height, crop }) => {
-      const platform = this.platforms.create(x, y, "platforms");
-      platform.setCrop(crop.x, crop.y, crop.w, crop.h);
-      platform.setDisplaySize(width, height);
-      platform.refreshBody();
-      return platform;
-    };
-
-    createPlatform({
-      x: WORLD_WIDTH / 2,
-      y: WORLD_HEIGHT - 40,
-      width: 1600,
-      height: 80,
-      crop: crops.wide,
+    platformRects.forEach(({ x, y, width, height }) => {
+      const body = this.add.zone(x, y, width, height);
+      this.physics.add.existing(body, true);
+      this.platforms.add(body);
+      platformGraphics.fillRect(x - width / 2, y - height / 2, width, height);
     });
-
-    createPlatform({ x: 340, y: 720, width: 360, height: 70, crop: crops.medium });
-    createPlatform({ x: 850, y: 620, width: 320, height: 64, crop: crops.small });
-    createPlatform({ x: 1250, y: 520, width: 280, height: 64, crop: crops.thin });
-    createPlatform({ x: 1650, y: 720, width: 300, height: 70, crop: crops.medium });
-    createPlatform({ x: 560, y: 460, width: 280, height: 60, crop: crops.small });
   }
 
   createAnimations() {
@@ -127,6 +123,21 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
     });
     this.player.play("idle");
+  }
+
+  createSpritePreview() {
+    const previewStartX = 16;
+    const previewStartY = 16;
+    const frameSpacing = SPRITE_FRAME_W * PREVIEW_SCALE + 6;
+
+    for (let i = 0; i < 8; i += 1) {
+      this.add
+        .sprite(previewStartX + i * frameSpacing, previewStartY, "player", i)
+        .setOrigin(0, 0)
+        .setScale(PREVIEW_SCALE)
+        .setScrollFactor(0)
+        .setDepth(5);
+    }
   }
 
   update(_, delta) {
@@ -153,8 +164,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     const body = this.player.body;
-    if (body && body.blocked.down && Phaser.Input.Keyboard.JustDown(this.jumpKey)) {
+    const wantsJump =
+      Phaser.Input.Keyboard.JustDown(this.jumpKey) || Phaser.Input.Keyboard.JustDown(this.keys.up);
+    if (body && body.blocked.down && wantsJump) {
       this.player.setVelocityY(-420);
+    }
+
+    if (body && this.keys.down.isDown && !body.blocked.down) {
+      this.player.setVelocityY(Math.max(body.velocity.y, 480));
     }
 
     const isMoving = Math.abs(this.player.body.velocity.x) > 5;
@@ -172,6 +189,9 @@ export default class GameScene extends Phaser.Scene {
       player: { x: this.player.x, y: this.player.y },
       target: this.target,
       distance,
+      velocity: { x: this.player.body.velocity.x, y: this.player.body.velocity.y },
+      frameWidth: SPRITE_FRAME_W,
+      frameHeight: SPRITE_FRAME_H,
     });
   }
 }

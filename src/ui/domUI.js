@@ -1,4 +1,4 @@
-export function createUI({ container, initialAutoMove, onToggle }) {
+export function createUI({ container, initialAutoMove, onToggle, frameWidth, frameHeight }) {
   const uiRoot = document.createElement("div");
   uiRoot.style.position = "absolute";
   uiRoot.style.top = "16px";
@@ -49,15 +49,19 @@ export function createUI({ container, initialAutoMove, onToggle }) {
 
   button.addEventListener("click", handleToggle);
 
-  const updateDebug = ({ autoMove, player, target, distance }) => {
+  const updateDebug = ({ autoMove, player, target, distance, velocity, frameWidth, frameHeight }) => {
     const targetText = target ? `${target.x.toFixed(1)}, ${target.y.toFixed(1)}` : "none";
     const distanceText = target ? distance.toFixed(2) : "-";
+    const velocityText = velocity ? `${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}` : "0, 0";
+    const frameText = frameWidth && frameHeight ? `${frameWidth}x${frameHeight}` : "n/a";
 
     debug.textContent = [
       `AutoMove: ${autoMove ? "ON" : "OFF"}`,
       `Player: ${player.x.toFixed(1)}, ${player.y.toFixed(1)}`,
       `Target: ${targetText}`,
       `Distance: ${distanceText}`,
+      `Velocity: ${velocityText}`,
+      `Frame: ${frameText}`,
     ].join("\n");
   };
 
